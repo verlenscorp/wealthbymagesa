@@ -131,25 +131,6 @@
     }
   });
 
-  // Geometric shapes drift with the mouse and the scroll
-  var shapes = $(".g[data-depth]");
-  if (shapes.length && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    var mx = 0, my = 0, ticking = false;
-    var paint = function () {
-      ticking = false;
-      shapes.forEach(function (s) {
-        var d = +s.getAttribute("data-depth");
-        var r = s.parentNode.getBoundingClientRect();
-        var sy = (r.top + r.height / 2 - innerHeight / 2) / innerHeight;
-        s.style.translate = (mx * d) + "px " + (my * d + sy * d * 3) + "px";
-      });
-    };
-    var queue = function () { if (!ticking) { ticking = true; requestAnimationFrame(paint); } };
-    addEventListener("mousemove", function (e) { mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; queue(); }, { passive: true });
-    addEventListener("scroll", queue, { passive: true });
-    paint();
-  }
-
   // ---------- Calendly (free embed, loads when the booking section is near) ----------
   var cal = document.querySelector("[data-calendly]");
   if (cal) {
@@ -179,7 +160,7 @@
   addEventListener("keydown", function (e) { if (e.key === "Escape") setMenu(false); });
 
   // ---------- Reveal ----------
-  var items = $(".reveal, .steps-wrap, .head, .book__copy");
+  var items = $(".reveal");
   if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     var io = new IntersectionObserver(function (es) {
       es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
