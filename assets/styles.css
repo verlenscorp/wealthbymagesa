@@ -187,7 +187,7 @@ p { margin: 0; }
 .story__img { width: 100%; aspect-ratio: 4/5; object-fit: cover; object-position: 50% 15%; border-radius: var(--r); box-shadow: var(--shadow); }
 .story__img2 { position: absolute; right: 0; bottom: 0; width: 44%; aspect-ratio: 4/5; object-fit: cover; object-position: 50% 15%; border-radius: var(--r); border: 6px solid var(--bg-2); box-shadow: var(--shadow); }
 .story__copy h2 { margin-bottom: 22px; }
-.story__copy [data-render="story"] p { color: var(--ink-2); margin-bottom: 16px; font-size: 1.05rem; }
+.story__copy > div > p { color: var(--ink-2); margin-bottom: 16px; font-size: 1.05rem; }
 .quote { margin: 28px 0 30px; padding: 4px 0 4px 22px; border-left: 2px solid var(--gold); font: italic 500 1.25rem/1.5 var(--serif); }
 .quote cite { display: block; margin-top: 8px; font: 500 .84rem/1 var(--sans); font-style: normal; color: var(--muted); }
 
