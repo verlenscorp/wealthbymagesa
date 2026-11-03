@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Edit site — Wealth by Magesa</title>
+  <style>
+    :root { --ink: #0F1E36; --gold: #B8913F; --line: #E2DED6; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #EEF0F3; }
+    .bar { position: fixed; inset: 0 0 auto; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--ink); color: #fff; z-index: 2; }
+    .bar b { font-weight: 600; }
+    .bar .status { margin-left: auto; color: #C9D3E2; font-size: 13px; }
+    .bar button { height: 36px; padding: 0 14px; border-radius: 6px; border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; font: 600 13px/1 inherit; cursor: pointer; }
+    .bar button.primary { background: var(--gold); border-color: var(--gold); }
+    .bar button:disabled { opacity: .45; cursor: default; }
+    .bar b, .bar span, .bar button { white-space: nowrap; }
+    .bar .status { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    @media (max-width: 820px) { .bar .hint { display: none; } }
+    @media (max-width: 520px) { .bar b, #undo { display: none; } }
+    iframe { position: fixed; top: 56px; left: 0; width: 100%; height: calc(100% - 56px); border: 0; background: #fff; }
+    dialog { border: 0; border-radius: 10px; padding: 24px; width: min(520px, 92vw); box-shadow: 0 30px 60px -20px rgba(0,0,0,.4); }
+    dialog h2 { margin: 0 0 8px; font-size: 18px; }
+    dialog p { margin: 0 0 12px; color: #4A5568; }
+    dialog input[type=password], dialog input[type=text] { width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+    dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    dialog button { height: 38px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--line); background: #fff; font: 600 13px/1 inherit; cursor: pointer; }
+    dialog button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+    dialog ol { margin: 0 0 12px; padding-left: 18px; color: #4A5568; }
+    dialog a { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <b>Edit mode</b>
+    <span class="hint">Click any text to type · click a photo to replace it</span>
+    <span class="status" id="status">Loading…</span>
+    <button id="undo" disabled>Undo all</button>
+    <button id="save" class="primary" disabled>Save &amp; publish</button>
+    <button id="key" title="GitHub key">Key</button>
+  </div>
+  <iframe id="frame" title="Site preview"></iframe>
+
+  <dialog id="keyDlg">
+    <h2>Connect to GitHub (one time)</h2>
+    <p>Saving publishes straight to the site. Paste a GitHub key that can only edit this one site:</p>
+    <ol>
+      <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → New fine-grained token</a></li>
+      <li>Repository access: <b>Only select repositories → wealthbymagesa</b></li>
+      <li>Permissions → Repository → <b>Contents: Read and write</b></li>
+      <li>Generate, copy, paste below</li>
+    </ol>
+    <input id="keyInput" type="password" placeholder="github_pat_…" autocomplete="off">
+    <p style="margin-top:10px;font-size:12px">Stored only in this browser. Use "Forget key" on shared computers.</p>
+    <div class="row"><button id="forget">Forget key</button><button id="keyCancel">Cancel</button><button id="keySave" class="primary">Save key</button></div>
+  </dialog>
+
+  <dialog id="imgDlg">
+    <h2>Replace photo</h2>
+    <p>Upload a new photo (JPG/PNG, under ~2 MB is best) or paste an image link.</p>
+    <input id="imgFile" type="file" accept="image/*">
+    <p style="margin:12px 0 6px">— or —</p>
+    <input id="imgUrl" type="text" placeholder="https://…">
+    <div class="row"><button id="imgCancel">Cancel</button><button id="imgOk" class="primary">Use this photo</button></div>
+  </dialog>
+
+<script>
+(function () {
+  "use strict";
+  var REPO = "verlenscorp/wealthbymagesa", BRANCH = "main", FILE = "index.html";
+  var API = "https://api.github.com/repos/" + REPO + "/contents/";
+  // Elements whose text can be edited. Nested matches are skipped so each piece of text has one owner.
+  var TEXT_SEL = "h1 .h1-line, h2, h3, p, li, summary, figcaption, blockquote, cite, a.btn, .chip span, .eyebrow, .logo b, .logo small, .float--chart small, .marquee__track span, .nav__links a, .menu a, .footer__contact a, .textcard__big, .float--text > span:last-child, .pin > span:last-child";
+  var IMG_SEL = "body img";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var frame = $("frame"), statusEl = $("status"), saveBtn = $("save"), undoBtn = $("undo");
+  var sourceText = "", sourceSha = "", dirty = false, pendingUploads = [], imgTarget = null;
+
+  function token() { try { return localStorage.getItem("wbm_gh_token") || ""; } catch (e) { return ""; } }
+  function setStatus(t) { statusEl.textContent = t; }
+  function setDirty(v) { dirty = v; saveBtn.disabled = !v; undoBtn.disabled = !v; setStatus(v ? "Unsaved changes" : "All changes published"); }
+
+  function b64ToUtf8(b64) {
+    var bin = atob(b64.replace(/\n/g, "")), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+  function bytesToB64(bytes) {
+    var bin = "", chunk = 0x8000;
+    for (var i = 0; i < bytes.length; i += chunk) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    return btoa(bin);
+  }
+
+  function gh(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ "Accept": "application/vnd.github+json" }, opts.headers || {});
+    if (token()) opts.headers.Authorization = "Bearer " + token();
+    return fetch(API + path + (opts.method ? "" : "?ref=" + BRANCH + "&t=" + Date.now()), opts).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok) { var e = new Error(j.message || r.status); e.status = r.status; throw e; } return j; });
+    });
+  }
+
+  // Elements matching the selector, minus any nested inside another match. Same rule for live page and source → same order.
+  function owners(doc, sel) {
+    var all = Array.prototype.slice.call(doc.body.querySelectorAll(sel));
+    return all.filter(function (el) {
+      if (el.closest("[data-calendly], .calendly-inline-widget, noscript")) return false;
+      for (var p = el.parentElement; p && p !== doc.body; p = p.parentElement) if (p.matches(sel)) return false;
+      return el.textContent.trim().length > 0;
+    });
+  }
+  function imgs(doc) { return Array.prototype.slice.call(doc.body.querySelectorAll(IMG_SEL)).filter(function (i) { return !i.closest(".calendly-inline-widget"); }); }
+
+  function load() {
+    setStatus("Loading…");
+    gh(FILE).then(function (j) {
+      sourceText = b64ToUtf8(j.content); sourceSha = j.sha;
+      frame.src = "../index.html?edit=" + Date.now();
+    }).catch(function (e) { setStatus("Could not load from GitHub: " + e.message); });
+  }
+
+  frame.addEventListener("load", function () {
+    var d = frame.contentDocument;
+    var style = d.createElement("style");
+    style.textContent =
+      ".reveal{opacity:1!important;transform:none!important}" +
+      "[data-edit]{outline:1px dashed transparent;outline-offset:3px;cursor:text;transition:outline-color .15s}" +
+      "[data-edit]:hover{outline-color:#B8913F}[data-edit]:focus{outline:2px solid #B8913F;background:rgba(184,145,63,.06)}" +
+      "img[data-edit-img]{cursor:pointer}img[data-edit-img]:hover{outline:3px solid #B8913F;outline-offset:-3px}" +
+      ".mbar{display:none!important}.marquee__track{animation-play-state:paused!important}";
+    d.head.appendChild(style);
+    owners(d, TEXT_SEL).forEach(function (el, i) {
+      el.setAttribute("data-edit", i);
+      el.contentEditable = "true";
+      el.spellcheck = true;
+      el.addEventListener("input", function () { setDirty(true); });
+      el.addEventListener("paste", function (e) { e.preventDefault(); d.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text/plain")); });
+    });
+    imgs(d).forEach(function (img, i) {
+      img.setAttribute("data-edit-img", i);
+      img.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); imgTarget = img; $("imgFile").value = ""; $("imgUrl").value = ""; $("imgDlg").showModal(); });
+    });
+    // Clicking links/buttons edits them instead of navigating.
+    d.addEventListener("click", function (e) { var a = e.target.closest("a, summary"); if (a) e.preventDefault(); }, true);
+    d.querySelectorAll("details").forEach(function (x) { x.open = true; });
+    setDirty(false);
+    if (!token()) setStatus("View only — click Key to enable saving");
+  });
+
+  function buildHtml() {
+    var live = frame.contentDocument;
+    var src = new DOMParser().parseFromString(sourceText, "text/html");
+    var liveText = owners(live, TEXT_SEL), srcText = owners(src, TEXT_SEL);
+    if (liveText.length !== srcText.length) throw new Error("Page changed on GitHub — reload the editor.");
+    liveText.forEach(function (el, i) { if (srcText[i].innerHTML !== el.innerHTML) srcText[i].innerHTML = el.innerHTML.replace(/<br\s*\/?>\s*$/, ""); });
+    var liveImgs = imgs(live), srcImgs = imgs(src);
+    liveImgs.forEach(function (img, i) {
+      var want = img.getAttribute("data-new-src");
+      if (want && srcImgs[i]) srcImgs[i].setAttribute("src", want);
+    });
+    var doctype = /^<!doctype[^>]*>/i.exec(sourceText);
+    return (doctype ? doctype[0] + "\n" : "<!doctype html>\n") + src.documentElement.outerHTML + "\n";
+  }
+  window.__buildHtml = buildHtml; // used for testing
+
+  saveBtn.addEventListener("click", function () {
+    if (!token()) { $("keyDlg").showModal(); return; }
+    var html;
+    try { html = buildHtml(); } catch (e) { setStatus(e.message); return; }
+    saveBtn.disabled = true; setStatus("Publishing…");
+    var uploads = pendingUploads.slice();
+    var chain = Promise.resolve();
+    uploads.forEach(function (u) {
+      chain = chain.then(function () {
+        return gh(u.path, { method: "PUT", body: JSON.stringify({ message: "Upload photo " + u.path, content: u.b64, branch: BRANCH }) });
+      });
+    });
+    chain.then(function () {
+      return gh(FILE, { method: "PUT", body: JSON.stringify({ message: "Edit site text via editor", content: bytesToB64(new TextEncoder().encode(html)), sha: sourceSha, branch: BRANCH }) });
+    }).then(function (j) {
+      sourceText = html; sourceSha = j.content.sha; pendingUploads = [];
+      setDirty(false); setStatus("Published ✓ — live in about 30 seconds");
+    }).catch(function (e) {
+      saveBtn.disabled = false;
+      if (e.status === 401 || e.status === 403) setStatus("GitHub key rejected — click Key and paste a new one");
+      else if (e.status === 409 || e.status === 422) setStatus("Someone else changed the page — click Undo all to reload, then redo your edit");
+      else setStatus("Publish failed: " + e.message);
+    });
+  });
+
+  undoBtn.addEventListener("click", function () { if (!dirty || confirm("Discard all unsaved changes?")) { pendingUploads = []; load(); } });
+  addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+  // Key dialog
+  $("key").addEventListener("click", function () { $("keyInput").value = ""; $("keyDlg").showModal(); });
+  $("keyCancel").addEventListener("click", function () { $("keyDlg").close(); });
+  $("forget").addEventListener("click", function () { try { localStorage.removeItem("wbm_gh_token"); } catch (e) {} $("keyDlg").close(); setStatus("Key removed — view only"); });
+  $("keySave").addEventListener("click", function () {
+    var v = $("keyInput").value.trim(); if (!v) return;
+    try { localStorage.setItem("wbm_gh_token", v); } catch (e) { setStatus("This browser blocks saving the key"); return; }
+    $("keyDlg").close(); setStatus(dirty ? "Key saved — click Save & publish" : "Key saved — ready to edit");
+  });
+
+  // Image dialog
+  $("imgCancel").addEventListener("click", function () { $("imgDlg").close(); });
+  $("imgOk").addEventListener("click", function () {
+    var file = $("imgFile").files[0], url = $("imgUrl").value.trim(), img = imgTarget;
+    if (file) {
+      var name = file.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
+      var path = "assets/img/" + Date.now().toString(36) + "-" + name;
+      file.arrayBuffer().then(function (buf) {
+        pendingUploads.push({ path: path, b64: bytesToB64(new Uint8Array(buf)) });
+        img.src = URL.createObjectURL(file); img.removeAttribute("srcset");
+        img.setAttribute("data-new-src", path);
+        setDirty(true); $("imgDlg").close();
+      });
+    } else if (/^https:\/\//.test(url)) {
+      img.src = url; img.setAttribute("data-new-src", url); setDirty(true); $("imgDlg").close();
+    }
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
