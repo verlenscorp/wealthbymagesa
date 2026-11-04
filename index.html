@@ -31,6 +31,8 @@
       Samuel's own photos live in assets/img/.
     - Phone number appears in several places: search this file
       for 269.231.9293 and 12692319293 and update every one.
+    - Blurred section backgrounds: change the url(...) inside
+      style="--bg-img: ..." on a <section> tag.
     - Colors and spacing are in assets/styles.css.
     - After saving: commit + push to GitHub and the live site
       updates in about a minute (or edit right on github.com).
@@ -64,7 +66,7 @@
 
   <main id="main">
     <!-- HERO -->
-    <section class="hero" id="top">
+    <section class="hero has-bg" id="top" style="--bg-img: url('/assets/img/bg-speaking.jpg')">
       <div class="wrap hero__grid">
         <div class="hero__copy">
           <p class="chip"><span class="chip__dot"></span><span>Free Financial Check-Up</span> · <span>Berrien Springs, Michigan</span></p>
@@ -79,10 +81,6 @@
 
         <div class="hero__stage">
           <div class="portrait"><img src="assets/img/samuel-navy.jpg" alt="Samuel Magesa, financial professional, in a navy suit" width="900" height="1200"></div>
-          <div class="float float--chart" aria-hidden="true">
-            <small>Your plan, protected</small>
-            <svg viewBox="0 0 160 70"><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D9A93F" stop-opacity=".35"></stop><stop offset="1" stop-color="#D9A93F" stop-opacity="0"></stop></linearGradient></defs><path class="chart-fill" d="M0 60 L20 52 L40 55 L60 40 L80 43 L100 28 L120 30 L140 14 L160 8 L160 70 L0 70Z" fill="url(#fill)"></path><path class="chart-line" d="M0 60 L20 52 L40 55 L60 40 L80 43 L100 28 L120 30 L140 14 L160 8"></path></svg>
-          </div>
           <a class="float float--text" href="sms:+12692319293?&amp;body=FINANCE"><span class="float__icon" aria-hidden="true">✉</span><span>Text <b>“<span>FINANCE</span>”</b> to<br><strong>269.231.9293</strong></span></a>
         </div>
       </div>
@@ -110,7 +108,7 @@
     </section>
 
     <!-- STRAIGHT TALK -->
-    <section class="section talk-band" id="straight-talk">
+    <section class="section talk-band has-bg" id="straight-talk" style="--bg-img: url('/assets/img/bg-team-event.jpg')">
       <div class="wrap talk">
         <div class="talk__head">
           <p class="eyebrow eyebrow--light">Straight talk</p>
@@ -137,7 +135,7 @@
     </section>
 
     <!-- SERVICES -->
-    <section class="section section--tint" id="services">
+    <section class="section section--tint has-bg" id="services" style="--bg-img: url('/assets/img/bg-team-suits.jpg')">
       <div class="wrap">
         <header class="head">
           <p class="eyebrow">Services</p>
@@ -211,7 +209,7 @@
     </section>
 
     <!-- BOOK -->
-    <section class="section book" id="book">
+    <section class="section book has-bg" id="book" style="--bg-img: url('/assets/img/bg-conference.jpg')">
       <div class="wrap book__grid">
         <div class="book__copy">
           <p class="eyebrow eyebrow--light">Free Financial Check-Up</p>
