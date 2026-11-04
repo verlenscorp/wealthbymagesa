@@ -36,6 +36,7 @@
     <b>Edit mode</b>
     <span class="hint">Click any text to type · click a photo to replace it</span>
     <span class="status" id="status">Loading…</span>
+    <button id="reviewsToggle" title="Show or hide the testimonials section on the live site">Testimonials: Hidden</button>
     <button id="undo" disabled>Undo all</button>
     <button id="save" class="primary" disabled>Save &amp; publish</button>
     <button id="key" title="GitHub key">Key</button>
@@ -76,7 +77,10 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var frame = $("frame"), statusEl = $("status"), saveBtn = $("save"), undoBtn = $("undo");
-  var sourceText = "", sourceSha = "", dirty = false, pendingUploads = [], imgTarget = null;
+  var sourceText = "", sourceSha = "", dirty = false, pendingUploads = [], imgTarget = null, showReviews = false;
+  var revBtn = $("reviewsToggle");
+  function paintRev() { revBtn.textContent = "Testimonials: " + (showReviews ? "Shown" : "Hidden"); }
+  revBtn.addEventListener("click", function () { showReviews = !showReviews; paintRev(); setDirty(true); });
 
   function token() { try { return localStorage.getItem("wbm_gh_token") || ""; } catch (e) { return ""; } }
   function setStatus(t) { statusEl.textContent = t; }
@@ -145,6 +149,8 @@
     // Clicking links/buttons edits them instead of navigating.
     d.addEventListener("click", function (e) { var a = e.target.closest("a, summary"); if (a) e.preventDefault(); }, true);
     d.querySelectorAll("details").forEach(function (x) { x.open = true; });
+    var rev = d.getElementById("reviews");
+    if (rev) { showReviews = !rev.hasAttribute("hidden"); rev.hidden = false; paintRev(); }
     setDirty(false);
     if (!token()) setStatus("View only — click Key to enable saving");
   });
@@ -160,6 +166,8 @@
       var want = img.getAttribute("data-new-src");
       if (want && srcImgs[i]) srcImgs[i].setAttribute("src", want);
     });
+    var srcRev = src.getElementById("reviews");
+    if (srcRev) { if (showReviews) srcRev.removeAttribute("hidden"); else srcRev.setAttribute("hidden", ""); }
     var doctype = /^<!doctype[^>]*>/i.exec(sourceText);
     return (doctype ? doctype[0] + "\n" : "<!doctype html>\n") + src.documentElement.outerHTML + "\n";
   }
